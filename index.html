@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Тайный Санта</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+</head>
+
+<body>
+    <div class="container py-4">
+        <h2 class="mb-4 text-center">Тайный Санта <i class="fa-solid fa-user-secret"></i></h2>
+
+        <!-- Блок ошибок -->
+        <div id="errorBox" class="alert alert-danger d-none"></div>
+
+        <!-- Шаг 1: настройка участников -->
+        <div id="setupSection">
+            <div class="mb-3">
+                <label for="participantCount" class="form-label">Количество участников <i class="fa-solid fa-people-pulling"></i></label>
+                <input type="number" min="2" class="form-control" id="participantCount" value="3">
+            </div>
+
+            <button id="createFieldsBtn" class="btn btn-secondary mb-3">
+                <i class="fa-solid fa-plus"></i> Создать поля для имён
+      </button>
+
+            <div id="namesContainer" class="mt-3"></div>
+
+            <button id="generateBtn" class="btn btn-info mt-3 d-none">
+                <i class="fa-solid fa-shuffle"></i> Сгенерировать жеребьёвку
+      </button>
+        </div>
+
+        <!-- Шаг 2: показ по одному участнику -->
+        <div id="drawSection" class="d-none mt-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Текущий участник:</h5>
+                    <p id="currentParticipantName" class="fs-5 fw-bold"></p>
+
+                    <div id="beforeShowRecipient">
+                        <p class="text-muted mb-3">
+                            Передайте экран этому участнику.
+                        </p>
+                        <button id="showRecipientBtn" class="btn btn-info">
+                            <i class="fa-solid fa-eye"></i> Показать, кому я дарю подарок
+            </button>
+                    </div>
+
+                    <div id="afterShowRecipient" class="d-none">
+                        <p class="mt-3 mb-2">Вы дарите подарок:</p>
+                        <p id="currentRecipientName" class="fs-4 fw-bold">
+                            🎁
+                        </p>
+
+                        <button id="nextParticipantBtn" class="btn btn-secondary me-2">
+                            <i class="fa-solid fa-eye-slash"></i> Скрыть и следующий участник <i class="fa-solid fa-angle-right"></i>
+            </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Шаг 3: завершено -->
+        <div id="doneSection" class="d-none mt-4">
+            <div class="alert alert-info">
+                <i class="fa-solid fa-gifts"></i> Жеребьёвка завершена! Все участники узнали, кому дарят подарки.
+            </div>
+            <button id="restartBtn" class="btn btn-outline-primary">
+        Начать заново
+      </button>
+        </div>
+    </div>
+
+    <script>
+        // Глобальные переменные внутри этого скрипта
+        let names = []; // список имён
+        let assignments = []; // индекс → индекс получателя
+        let currentIndex = 0; // какой участник сейчас
+
+        // Показать ошибку
+        function showError(message) {
+            $('#errorBox').text(message).removeClass('d-none');
+        }
+
+        // Скрыть ошибку
+        function clearError() {
+            $('#errorBox').addClass('d-none').text('');
+        }
+
+        // Фишер–Йетс перемешивание
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Создание полей для имён
+        $('#createFieldsBtn').on('click', function() {
+            clearError();
+            const n = parseInt($('#participantCount').val(), 10);
+
+            if (!n || n < 2) {
+                showError('Нужно минимум 2 участника.');
+                $('#namesContainer').empty();
+                $('#generateBtn').addClass('d-none');
+                return;
+            }
+
+            const $container = $('#namesContainer');
+            $container.empty();
+
+            for (let i = 0; i < n; i++) {
+                const fieldHtml = `
+          <div class="mb-2">
+            <label class="form-label">Участник ${i + 1}</label>
+            <input type="text" class="form-control name-input" placeholder="Введите имя">
+          </div>
+        `;
+                $container.append(fieldHtml);
+            }
+
+            $('#generateBtn').removeClass('d-none');
+        });
+
+        // Генерация жеребьёвки
+        $('#generateBtn').on('click', function() {
+            clearError();
+
+            const $inputs = $('.name-input');
+            const n = $inputs.length;
+
+            if (n < 2) {
+                showError('Добавьте хотя бы 2 участника.');
+                return;
+            }
+
+            names = [];
+            $inputs.each(function() {
+                names.push($(this).val().trim());
+            });
+
+            // Проверка, что все имена заполнены
+            if (names.some(name => !name)) {
+                showError('Заполните все имена участников.');
+                return;
+            }
+
+            // Индексы 0..n-1
+            let indices = Array.from({
+                length: n
+            }, (_, i) => i);
+            let shuffled;
+
+            // Дерранжмент: никто не получает самого себя
+            do {
+                shuffled = shuffle(indices.slice());
+            } while (shuffled.some((v, i) => v === i) && n > 1);
+
+            assignments = shuffled;
+            currentIndex = 0;
+
+            // Переходим в режим "по одному участнику"
+            $('#setupSection').addClass('d-none');
+            $('#doneSection').addClass('d-none');
+
+            $('#drawSection').removeClass('d-none');
+            $('#beforeShowRecipient').removeClass('d-none');
+            $('#afterShowRecipient').addClass('d-none');
+
+            $('#currentParticipantName').text(names[currentIndex]);
+            $('#currentRecipientName').text('');
+        });
+
+        // Показать, кому дарит текущий
+        $('#showRecipientBtn').on('click', function() {
+            const recipientIndex = assignments[currentIndex];
+            const recipientName = names[recipientIndex];
+
+            $('#currentRecipientName').text('🎁 ' + recipientName);
+            $('#beforeShowRecipient').addClass('d-none');
+            $('#afterShowRecipient').removeClass('d-none');
+        });
+
+        // Следующий участник
+        $('#nextParticipantBtn').on('click', function() {
+            currentIndex++;
+
+            if (currentIndex >= names.length) {
+                // Все участники прошли
+                $('#drawSection').addClass('d-none');
+                $('#doneSection').removeClass('d-none');
+                return;
+            }
+
+            // Сброс состояния для следующего участника
+            $('#currentParticipantName').text(names[currentIndex]);
+            $('#currentRecipientName').text('');
+            $('#beforeShowRecipient').removeClass('d-none');
+            $('#afterShowRecipient').addClass('d-none');
+        });
+
+        // Начать всё заново
+        $('#restartBtn').on('click', function() {
+            names = [];
+            assignments = [];
+            currentIndex = 0;
+
+            $('#participantCount').val(3);
+            $('#namesContainer').empty();
+            $('#generateBtn').addClass('d-none');
+
+            clearError();
+
+            $('#doneSection').addClass('d-none');
+            $('#drawSection').addClass('d-none');
+            $('#setupSection').removeClass('d-none');
+        });
+    </script>
+</body>
+<style>
+    body {
+        background: black;
+        color: white;
+    }
+</style>
+
+</html>
